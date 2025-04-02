@@ -28,6 +28,8 @@ app.use("/api/user", authRoute);
 app.use("/api/chat", chatRoutes);
 app.use("/api/message", messageRoutes);
 
+let onlineUsers = {};
+
 // ✅ Handle Socket.io Connections
 io.on("connection", (socket) => {
   console.log("A user connected:", socket.id);
@@ -43,8 +45,25 @@ io.on("connection", (socket) => {
     io.to(messageData.chat).emit("receiveMessage", messageData);
   });
 
+  // Listen for user login (send userId from frontend)
+  socket.on("userOnline", (userId) => {
+    onlineUsers[userId] = socket.id;
+    io.emit("updateOnlineUsers", Object.keys(onlineUsers));
+  });
+
+  //When user disconnects
   socket.on("disconnect", () => {
     console.log("User Disconnected", socket.id);
+
+    // Remove user from online list
+    let disconnectedUser = Object.keys(onlineUsers).find(
+      (key) => onlineUsers[key] === socket.id
+    );
+
+    if (disconnectedUser) {
+      delete onlineUsers[disconnectedUser];
+      io.emit("updateOnlineUsers", Object.keys(onlineUsers)); // Send updated list
+    }
   });
 });
 

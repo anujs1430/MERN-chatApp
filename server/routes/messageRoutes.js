@@ -39,11 +39,9 @@ router.post("/", authMiddleware, async (req, res) => {
 router.get("/:chatId", authMiddleware, async (req, res) => {
   try {
     const { chatId } = req.params;
-    // console.log("Received request for messages. Chat ID:", chatId); // ✅ Debugging
 
     const chat = await chatModel.findById(chatId);
     if (!chat) {
-      console.log("Chat not found in DB for ID:", chatId); // ❌ Debugging
       return res
         .status(404)
         .json({ success: false, message: "Chat not found" });
