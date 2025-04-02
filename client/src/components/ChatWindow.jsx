@@ -5,20 +5,23 @@ import { io } from "socket.io-client";
 import { IoIosSend } from "react-icons/io";
 import { FaArrowAltCircleDown } from "react-icons/fa";
 
-const socket = io("http://localhost:8000"); //✅ Connect to backend socket
+const socket = io("http://localhost:8000"); // ✅ Connect to backend socket
 
-const ChatWindow = ({ selectedChat, loggedInUser }) => {
+const ChatWindow = ({ selectedChat, loggedInUser, onlineUsers }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
+  const [showScrollButton, setShowScrollButton] = useState(true);
 
   const lastMessageRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const chatBodyRef = useRef(null); // ✅ Reference to the chat body
 
-  // ✅ Ensure `selectedChat` is not null before finding `otherUser`
+  // ✅ Find the other user in the chat
   const otherUser = selectedChat?.users?.find(
     (user) => user?._id !== loggedInUser?._id
   );
 
+  // 🔹 Fetch messages when chat changes
   useEffect(() => {
     const fetchMessages = async () => {
       if (!selectedChat || !selectedChat._id || !loggedInUser) return;
@@ -30,7 +33,7 @@ const ChatWindow = ({ selectedChat, loggedInUser }) => {
           { headers: { Authorization: `Bearer ${token}` } }
         );
 
-        setMessages(response.data.messages); // ✅ Store messages in state
+        setMessages(response.data.messages);
       } catch (error) {
         console.error("Error fetching messages:", error);
       }
@@ -38,38 +41,35 @@ const ChatWindow = ({ selectedChat, loggedInUser }) => {
     fetchMessages();
 
     if (selectedChat) {
-      socket.emit("joinChat", selectedChat._id); // ✅ Join chat room
+      socket.emit("joinChat", selectedChat._id);
     }
 
     socket.on("receiveMessage", (newMsg) => {
-      // ✅ Ensure the message updates even if the receiver is not in the chat yet
       if (!selectedChat || newMsg.chat !== selectedChat._id) return;
-
-      setMessages((prevMessage) => [...prevMessage, newMsg]); // ✅ Update state in real-time
+      setMessages((prevMessage) => [...prevMessage, newMsg]);
     });
 
     return () => {
       socket.off("receiveMessage");
     };
-  }, [selectedChat, loggedInUser]); // ✅ Runs when `selectedChat` changes
+  }, [selectedChat, loggedInUser]);
 
+  // 🔹 Scroll to bottom on new message
   useEffect(() => {
-    // ✅ Scroll to bottom when new message arrives
     setTimeout(() => {
       lastMessageRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 100);
 
-    // ✅ Scroll to bottom when select user to chat
     if (selectedChat && messagesEndRef.current) {
       setTimeout(() => {
         messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-      }, 100); // ✅ Small delay ensures messages are loaded before scrolling
+      }, 100);
     }
-  }, [selectedChat, messages]); // ✅ Runs when chat or messages update
+  }, [selectedChat, messages]);
 
-  // 🔹 Handle Sending a Message
+  // 🔹 Handle sending a message
   const handleSendMessage = async () => {
-    if (newMessage.trim() === "" || !selectedChat) return; // ✅ Prevent empty messages
+    if (newMessage.trim() === "" || !selectedChat) return;
 
     try {
       const token = localStorage.getItem("token");
@@ -80,19 +80,51 @@ const ChatWindow = ({ selectedChat, loggedInUser }) => {
       );
 
       const sentMessage = response.data.message;
-      // setMessages([...messages, sentMessage]); // ✅ Add new message to state
-      setNewMessage(""); // ✅ Clear input field
+      setNewMessage("");
 
-      socket.emit("sendMessage", sentMessage); // ✅ Send message via WebSocket
+      socket.emit("sendMessage", sentMessage);
     } catch (error) {
       console.error("Error sending message:", error);
     }
   };
 
+  // 🔹 Scroll to Bottom Function
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // 🔹 Detect Scroll Movement
+  const handleScroll = () => {
+    if (chatBodyRef.current) {
+      const scrollTop = chatBodyRef.current.scrollTop;
+      const scrollHeight = chatBodyRef.current.scrollHeight;
+      const clientHeight = chatBodyRef.current.clientHeight;
+
+      // Show the button if the user has scrolled up at least 100px
+      const isScrolledUp = scrollHeight - clientHeight - scrollTop > 100;
+      setShowScrollButton(isScrolledUp);
+    }
+  };
+
+  // 🔹 Attach Scroll Event Listener
+  useEffect(() => {
+    const chatBody = chatBodyRef.current;
+    if (chatBody) {
+      chatBody.addEventListener("scroll", handleScroll);
+      handleScroll(); // Run once on mount
+    }
+
+    return () => {
+      if (chatBody) {
+        chatBody.removeEventListener("scroll", handleScroll);
+      }
+    };
+  }, []);
+
   return (
     <div className="chat-window">
       {!selectedChat || !loggedInUser ? (
-        <img src={noChat} alt="" className="w-50 m-auto" /> // ✅ Show loading state inside JSX instead of returning early
+        <img src={noChat} alt="" className="w-50 m-auto" />
       ) : (
         <>
           <div className="chat-header">
@@ -104,37 +136,39 @@ const ChatWindow = ({ selectedChat, loggedInUser }) => {
                   : messages[0]?.sender?._id === loggedInUser._id
                   ? "You"
                   : "User Not Found"}
+
+                {onlineUsers.includes(otherUser?._id) && (
+                  <small style={{ fontSize: "12px" }}>&nbsp; (Online)</small>
+                )}
               </span>
             </div>
           </div>
 
-          <div className="chat-body position-relative">
-            {messages.map((msg, index) => {
-              return (
-                <div
-                  key={index}
-                  ref={index === messages.length - 1 ? lastMessageRef : null} // ✅ Attach ref to last message
-                  className={`chat-message ${
-                    (msg.sender._id || msg.sender) === loggedInUser._id
-                      ? "me"
-                      : "other"
-                  }`}
-                >
-                  {msg.content}
-                </div>
-              );
-            })}
+          {/* ✅ Scrollable Chat Body */}
+          <div className="chat-body position-relative" ref={chatBodyRef}>
+            {messages.map((msg, index) => (
+              <div
+                key={index}
+                ref={index === messages.length - 1 ? lastMessageRef : null} // ✅ Attach ref to last message
+                className={`chat-message ${
+                  (msg.sender._id || msg.sender) === loggedInUser._id
+                    ? "me"
+                    : "other"
+                }`}
+              >
+                {msg.content}
+              </div>
+            ))}
 
-            <FaArrowAltCircleDown
-              onClick={() =>
-                messagesEndRef.current.scrollIntoView({
-                  behavior: "smooth",
-                })
-              }
-              className="scroll-down-btn"
-            />
+            {/* ✅ Scroll Down Button (Visible Only When Scrolled Up 100px) */}
+            {showScrollButton && (
+              <FaArrowAltCircleDown
+                onClick={scrollToBottom}
+                className="scroll-down-btn"
+              />
+            )}
 
-            {/* ✅ This empty div ensures scrolling to the bottom */}
+            {/* ✅ Invisible Element to Scroll to Bottom */}
             <div ref={messagesEndRef}></div>
           </div>
 

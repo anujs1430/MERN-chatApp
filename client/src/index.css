@@ -177,7 +177,7 @@ input:focus {
 }
 
 .user-item.active {
-  background: var(--dark);
+  background: var(--bg-default-active);
   color: white;
   border-radius: 0;
 }
@@ -251,4 +251,36 @@ input:focus {
   width: 40px;
   padding: 5px;
   border-radius: 100%;
+}
+
+svg.user,
+.password,
+.name {
+  position: absolute;
+  left: 13px;
+  top: 42px;
+  color: aliceblue;
+}
+
+.green-dot {
+  width: 10px;
+  height: 10px;
+  background-color: green;
+  border-radius: 50%;
+  display: inline-block;
+  margin-left: 8px;
+}
+
+.login-card .card,
+.registration-card .card {
+  background-color: var(--outgoing-color);
+  color: #fff;
+}
+
+.modal-content {
+  background-color: var(--incoming-background);
+}
+
+.modal .btn-close {
+  filter: invert(1);
 }
